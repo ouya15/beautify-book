@@ -40,15 +40,35 @@ Glob: {filename}_temp/chunk*.md
 Glob: {filename}_temp/output_chunk*.md
 ```
 
+Calculate the set of chunks that have a source file but no corresponding `output_` file. These are the chunks to beautify.
+
 If all chunks already have output files, skip to step 5.
 
 ### 4. Parallel Beautification with Sub-Agents
 
-Launch sub-agents in parallel (default 8 concurrent):
+**Each chunk gets its own independent sub-agent** (1 chunk = 1 sub-agent = 1 fresh context). This prevents context accumulation and output truncation.
+
+Launch chunks in batches to respect API rate limits:
+- Each batch: up to `concurrency` sub-agents in parallel (default: 8)
+- Wait for the current batch to complete before launching the next
+
+**Spawn each sub-agent with the following task.** Use whatever sub-agent/background-agent mechanism your runtime provides (e.g. the Agent tool, sessions_spawn, or equivalent).
+
+The output file is `output_` prefixed to the source filename: `chunk0001.md` → `output_chunk0001.md`.
 
 > Beautify the file `<temp_dir>/chunk<NNNN>.md` and write the result to `<temp_dir>/output_chunk<NNNN>.md`. Follow the beautification rules below. Output only the beautified content — no commentary.
 
-Each sub-agent beautifies ONE chunk.
+Each sub-agent receives:
+- The single chunk file it is responsible for
+- The temp directory path
+- The beautification prompt (see below)
+
+**Each sub-agent's task**:
+1. Read the source chunk file (e.g. `chunk0001.md`)
+2. Beautify the content following the rules below
+3. Write the beautified content to `output_chunk0001.md`
+
+**IMPORTANT**: Each sub-agent beautifies exactly ONE chunk and writes the result directly to the output file. No START/END markers needed.
 
 ---
 
@@ -94,11 +114,17 @@ IMPORTANT REQUIREMENTS:
 
 ---
 
-### 5. Verify Completeness
+### 5. Verify Completeness and Retry
 
-After all batches complete, check that every source chunk has a corresponding output file.
+After all batches complete, use Glob to check that every source chunk has a corresponding output file.
 
-If any are missing, retry them. Maximum 2 attempts per chunk.
+If any are missing, retry them — each missing chunk as its own sub-agent. Maximum 2 attempts per chunk (initial + 1 retry).
+
+Also read `manifest.json` and verify:
+- Every chunk id has a corresponding output file
+- No output file is empty (0 bytes)
+
+Report any chunks that failed after retry.
 
 ### 6. Post-process — Merge and Build
 
