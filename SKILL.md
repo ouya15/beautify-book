@@ -42,7 +42,7 @@ Glob: {filename}_temp/output_chunk*.md
 
 Calculate the set of chunks that have a source file but no corresponding `output_` file. These are the chunks to beautify.
 
-If all chunks already have output files, skip to step 5.
+If all chunks already have output files, skip to step 6 (Post-process).
 
 ### 4. Parallel Beautification with Sub-Agents
 
